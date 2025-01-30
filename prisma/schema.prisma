@@ -26,6 +26,9 @@ model Users {
 
   addressDetails   AddressDetails?
   addressDetailsId String?
+
+  otp OTP?
+  otpId String?
 }
 
 enum Gender {
@@ -54,4 +57,18 @@ model AddressDetails {
   // Relation to Users
   userID String @unique
   user   Users  @relation(fields: [userID], references: [userID])
+}
+
+
+model OTP {
+  id          Int      @id @default(autoincrement())
+  userID      String   @unique
+  otpCode     String   
+  phone       String  
+  email       String?  
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  verified    Boolean  @default(false) 
+  attempts    Int      @default(0) 
+  user        Users     @relation(fields: [userID], references: [userID]) 
 }

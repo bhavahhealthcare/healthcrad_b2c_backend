@@ -68,12 +68,12 @@ function generateOtp(): string {
 
 // generate accessToken
 const generateAccessToken = (user: {
-  userID: string;
+  userId: string;
   email: string;
   phone: string;
 }): string => {
   const payload = {
-    id: user.userID,
+    userId: user.userId,
     email: user.email,
     phone: user.phone,
   };
@@ -112,6 +112,7 @@ const generateRefreshToken = (user: { userId: string }): string => {
     throw new Error("Token generation failed");
   }
 };
+
 // generate access and refresh token...
 const generateAccessandRefreshToken = (user: {
   userId: string;
@@ -165,6 +166,30 @@ const getAllUsers = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// get user by id
+const getUser = async (req: Request, res: Response) => {
+  try {
+    const userDetail = req.body.user;
+    if(!userDetail || !userDetail.userId) {
+      res.status(401).json(new ApiError("User details missing", 401));
+      return;
+    }
+
+    const currentUser = await prisma.users.findUnique({
+      where: {
+        userID: userDetail.userId
+      }
+    });
+    if(!userDetail){
+      res.status(404).json(new ApiError("User detail not found!", 404));
+    }
+    res.status(200).json(new ApiResponse("Success", 200, "User data Fetched", currentUser))
+  } catch (error) {
+    console.error("Error while getting user details: ", error);
+    res.status(500).json(new ApiError("Internal server error", 500));
+  }
+}
 
 // register user.........................................................................
 const registerUser = async (req: Request, res: Response) => {
@@ -221,7 +246,7 @@ const registerUser = async (req: Request, res: Response) => {
     let accessToken, refreshToken;
     try {
       accessToken = generateAccessToken({
-        userID: newUser.userID,
+        userId: newUser.userID,
         email: newUser.email,
         phone: newUser.phone,
       });
@@ -304,7 +329,7 @@ const loginUser = async (req: Request, res: Response) => {
     let token;
     try {
       token = generateAccessToken({
-        userID: user.userID,
+        userId: user.userID,
         email: user.email,
         phone: user.phone,
       });
@@ -413,9 +438,11 @@ const updatePhone = async (req: Request, res: Response) => {
     } catch (error) {
       console.error(error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json(new ApiError("Invalid Phone Number", 400, undefined, error.errors));
+        res.status(400).json(new ApiError("Invalid Phone Number", 400, undefined, error.errors));
+        return;
       }
-      return res.status(500).json(new ApiError("Unexpected error during validation", 500));
+      res.status(500).json(new ApiError("Unexpected error during validation", 500));
+      return;
     }
 
     // Find current user
@@ -424,15 +451,17 @@ const updatePhone = async (req: Request, res: Response) => {
     });
 
     if (!currentUser) {
-      return res.status(404).json(new ApiError("User not found", 404));
+      res.status(404).json(new ApiError("User not found", 404));
+      return;
     }
 
-    // Check if the new email is the same as the current one
+    // Check if the new phone is the same as the current one
     if (newPhone === currentUser.phone) {
-      return res.status(200).json(new ApiError("Email remains unchanged", 200));
+      res.status(200).json(new ApiError("Email remains unchanged", 200));
+      return;
     }
 
-    // Check if the email is already used by another user
+    // Check if the phone is already used by another user
     const existingUser = await prisma.users.findUnique({
       where: {
         email: newPhone
@@ -465,16 +494,21 @@ const updatePhone = async (req: Request, res: Response) => {
 // update email...
 const updateEmail = async (req: Request, res: Response) => {
   try {
-    const { newEmail, userDetail } = req.body;
+    // const { newEmail, userDetail } = req.body;
+    const newEmail = req.body.email;
+    const userDetail = req.body.user;
+    console.log(newEmail);
     // validate email...
     try {
       emailSchema.parse(newEmail);
     } catch (error) {
       console.error(error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json(new ApiError("Invalid Email", 400, undefined, error.errors));
+        res.status(400).json(new ApiError("Invalid Email", 400, undefined, error.errors));
+        return;
       }
-      return res.status(500).json(new ApiError("Unexpected error during validation", 500));
+      res.status(500).json(new ApiError("Unexpected error during validation", 500));
+      return;
     }
 
     if (!userDetail || !userDetail.userId) {
@@ -488,12 +522,14 @@ const updateEmail = async (req: Request, res: Response) => {
     });
 
     if (!currentUser) {
-      return res.status(404).json(new ApiError("User not found", 404));
+      res.status(404).json(new ApiError("User not found", 404));
+      return;
     }
 
     // Check if the new email is the same as the current one
     if (newEmail === currentUser.email) {
-      return res.status(200).json(new ApiError("Email remains unchanged", 200));
+      res.status(200).json(new ApiError("Email remains unchanged", 200));
+      return;
     }
 
     // Check if the email is already used by another user
@@ -518,7 +554,7 @@ const updateEmail = async (req: Request, res: Response) => {
         email: newEmail,
       },
     });
-    res.status(200).json(new ApiResponse("Success", 200, "Email Updated", data))
+    res.status(200).json(new ApiResponse("Success", 200, "Email Updated", data.email))
   } catch (error) {
     console.error("Error while updating email: ", error);
     res.status(500).json(new ApiError("Internal server error", 500));
@@ -584,17 +620,24 @@ const addAddress = async (req: Request, res: Response) => {
       },
     });
     if (newAddress) {
-      res
-        .status(201)
-        .json(
-          new ApiResponse(
-            "Success",
-            201,
-            "Address added successfuly",
-            newAddress
-          )
-        );
+      const pushIdToUser = await prisma.users.update({
+        where: {
+          userID: newAddress.userID
+        },
+        data: {
+          addressDetailsId: newAddress.id
+        }
+      });
+      if(!pushIdToUser){
+        const deleteAddress = await prisma.addressDetails.delete({
+          where: {
+            id: newAddress.id
+          }
+        });
+        res.status(500).json(new ApiError("Internal server error!", 500));
+      }
     }
+    res.status(201).json(new ApiResponse("Success",201,"Address added successfuly",newAddress));
   } catch (error) {
     console.error("Error adding address:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -639,7 +682,7 @@ const updateAddress = async (req: Request, res: Response) => {
       return;
     }
 
-    // find does eddress exist for the user
+    // finding existing address for the user
     const existingAddress = await prisma.addressDetails.findUnique({
       where: {
         userID: userDetail.userId,
@@ -660,7 +703,7 @@ const updateAddress = async (req: Request, res: Response) => {
       existingAddress.localityArea === localityArea &&
       existingAddress.landmark === landmark
     ) {
-      return res
+      res
         .status(200)
         .json(
           new ApiResponse(
@@ -670,6 +713,7 @@ const updateAddress = async (req: Request, res: Response) => {
             existingAddress
           )
         );
+      return;
     }
 
     // update
@@ -689,18 +733,7 @@ const updateAddress = async (req: Request, res: Response) => {
       },
     });
 
-    if (updatedAddress) {
-      res
-        .status(201)
-        .json(
-          new ApiResponse(
-            "Success",
-            201,
-            "Address updated successfuly",
-            updatedAddress
-          )
-        );
-    }
+    res.status(201).json(new ApiResponse("Success",201,"Address updated successfuly",updatedAddress));
   } catch (error) {
     console.error("Error adding address:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -711,4 +744,15 @@ const updateAddress = async (req: Request, res: Response) => {
   }
 };
 
-export { getAllUsers, registerUser, loginUser, addAddress, refreshAccessToken };
+export {
+  getAllUsers,
+  registerUser,
+  getUser,
+  loginUser,
+  addAddress,
+  refreshAccessToken,
+  updatePhone,
+  updateEmail,
+  updateAddress,
+};
+

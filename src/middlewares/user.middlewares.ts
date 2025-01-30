@@ -23,13 +23,15 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
         // console.log("Token verified");
         next();
     } catch (err) {
-        if (err instanceof Jwt.JsonWebTokenError) {
-            res.status(401).json(new ApiError("Invalid token", 401));
-        } else if (err instanceof Jwt.TokenExpiredError) {
-            res.status(401).json(new ApiError("Token exired", 401));
-        }
         console.error("Unexpected error during token verification: ", err);
-        res.status(500).json(new ApiError("Internal server error", 500));
+        // if (err instanceof Jwt.JsonWebTokenError) {
+        //     res.status(401).json(new ApiError("Invalid token", 401));
+        //     return;
+        // } else 
+        if (err instanceof Jwt.TokenExpiredError) {
+            res.status(401).json(new ApiError("Token exired", 401));
+            return;
+        } else res.status(500).json(new ApiError("Internal server error", 500));
     }
 }
 
