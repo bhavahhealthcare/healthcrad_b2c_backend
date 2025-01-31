@@ -5,6 +5,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import bcrypt, { hash } from "bcrypt";
 import jwt, { SignOptions } from "jsonwebtoken";
+import { sendOTP } from "../utils/SendOTP";
 
 const prisma = new PrismaClient();
 const saltRounds = 10;
@@ -311,6 +312,15 @@ const loginUser = async (req: Request, res: Response) => {
         .json(new ApiError("validation error", 400, undefined, errorMessage));
       return;
     }
+    const message = "I am testing for OTP based varification!"
+    const result = await sendOTP({
+      message: message,
+      phoneNumber: phone,
+      isTest: "true"
+    });
+    console.log(result);
+    return;
+
 
     // check if user registered
     const user = await prisma.users.findUnique({
@@ -324,25 +334,26 @@ const loginUser = async (req: Request, res: Response) => {
     }
     const OTP = generateOtp();
     // this OTP will be sent via phone no and will be saved in database.
+    
 
     // jwt...
-    let token;
-    try {
-      token = generateAccessToken({
-        userId: user.userID,
-        email: user.email,
-        phone: user.phone,
-      });
-    } catch (err) {
-      await prisma.users.delete({
-        where: { phone },
-      });
-      console.error("Token generation failed:", err);
-      res.status(500).json({ message: "User registration failed" });
-      return;
-    }
+    // let token;
+    // try {
+    //   token = generateAccessToken({
+    //     userId: user.userID,
+    //     email: user.email,
+    //     phone: user.phone,
+    //   });
+    // } catch (err) {
+    //   await prisma.users.delete({
+    //     where: { phone },
+    //   });
+    //   console.error("Token generation failed:", err);
+    //   res.status(500).json({ message: "User registration failed" });
+    //   return;
+    // }
 
-    res.status(200).json({ message: "log in successful!", token: token });
+    res.status(200).json({ message: "log in successful!", token: "no token" });
   } catch (error) {
     console.error("Error during Login:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -755,4 +766,5 @@ export {
   updateEmail,
   updateAddress,
 };
+
 
