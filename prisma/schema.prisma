@@ -27,7 +27,10 @@ model Users {
   addressDetails   AddressDetails?
   addressDetailsId String?
 
-  otp OTP?
+  carts Cart[]
+  wishlists Wishlist[]
+
+  otp   OTP?
   otpId String?
 }
 
@@ -59,16 +62,92 @@ model AddressDetails {
   user   Users  @relation(fields: [userID], references: [userID])
 }
 
-
 model OTP {
-  id          Int      @id @default(autoincrement())
-  userID      String   @unique
-  otpCode     String   
-  phone       String  
-  email       String?  
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
-  verified    Boolean  @default(false) 
-  attempts    Int      @default(0) 
-  user        Users     @relation(fields: [userID], references: [userID]) 
+  id        Int      @id @default(autoincrement())
+  userID    String   @unique
+  otpCode   String
+  phone     String
+  email     String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  attempts  Int      @default(0)
+  user      Users    @relation(fields: [userID], references: [userID])
+}
+
+// medicine schemas
+model Medicine {
+  medicine_id           Int       @id @default(autoincrement())
+  name                  String
+  category_id           Int
+  category              Category     @relation(fields: [category_id], references: [category_id])
+  price                 Float
+  brand_id Int
+  brand                 Brand @relation(fields: [brand_id], references: [brand_id])
+  manufacturer_id       Int
+  manufacturer          Manufacturer @relation(fields: [manufacturer_id], references: [manufacturer_id])
+  stock_quantity        Int
+  expiry_date           DateTime
+  description           String
+  prescription_required Boolean
+
+  cart Cart[]
+  wishlists Wishlist[]
+
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model Manufacturer {
+  manufacturer_id Int     @id @default(autoincrement())
+  name            String     @unique
+  medicines       Medicine[]
+  description     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Category {
+  category_id Int     @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  medicines   Medicine[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Brand {
+  brand_id Int @id @default(autoincrement())
+  name String @unique
+  description String?
+  medicines Medicine[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+// cart model
+model Cart {
+  cart_id Int @id @default(autoincrement())
+  user_id String
+  user Users @relation(fields: [user_id], references: [userID])
+  medicine_id Int
+  medicine Medicine @relation(fields: [medicine_id], references: [medicine_id])
+  quantity Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([user_id, medicine_id])
+}
+
+// wishlist model
+model Wishlist {
+  wishlist_id   Int       @id @default(autoincrement())
+  user_id       String
+  user          Users     @relation(fields: [user_id], references: [userID])
+  medicine_id   Int
+  medicine      Medicine  @relation(fields: [medicine_id], references: [medicine_id])
+  createdAt     DateTime  @default(now())
+
+  @@unique([user_id, medicine_id]) 
 }

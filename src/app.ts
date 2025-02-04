@@ -17,7 +17,8 @@ app.use(express.static("public"));
 
 
 // import routers...
-import userRouter from "./routes/user.routes"
+import userRouter from "./routes/user.routes";
+import medicinesRouter from "./routes/medicine.routes";
 
 
 // routes
@@ -29,6 +30,7 @@ app.get("/api/v1/", (req, res) => {
     });
 })
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/medicines", medicinesRouter);
 
 
 export default app;
