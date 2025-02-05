@@ -81,7 +81,7 @@ const generateAccessToken = (user: {
   const jwtSecret = process.env.JWT_SECRET;
   const expiresIn = process.env.ACCESS_TOKEN_EXPIRE_IN
     ? parseInt(process.env.ACCESS_TOKEN_EXPIRE_IN)
-    : "30m";
+    : "1h";
   // console.log(expiresIn);
 
   if (!jwtSecret)
