@@ -436,7 +436,10 @@ const refreshAccessToken = async (req: Request, res: Response) => {
 // Update Phone no...
 const updatePhone = async (req: Request, res: Response) => {
   try {
-    const { newPhone, userDetail } = req.body;
+    // const { newPhone, userDetail } = req.body;
+    const newPhone = req.body.phone;
+    const userDetail = req.body.user;
+    console.log(userDetail);
 
     if (!userDetail || !userDetail.userId) {
       res.status(401).json(new ApiError("User detail missing", 401));
@@ -468,14 +471,14 @@ const updatePhone = async (req: Request, res: Response) => {
 
     // Check if the new phone is the same as the current one
     if (newPhone === currentUser.phone) {
-      res.status(200).json(new ApiError("Email remains unchanged", 200));
+      res.status(400).json(new ApiError("Phone remains unchanged", 400));
       return;
     }
 
     // Check if the phone is already used by another user
     const existingUser = await prisma.users.findUnique({
       where: {
-        email: newPhone
+        phone: newPhone
       },
     });
     if (existingUser) {
@@ -488,7 +491,7 @@ const updatePhone = async (req: Request, res: Response) => {
     // update phone no...
     const data = await prisma.users.update({
       where: {
-        userID: userDetail.userID,
+        userID: userDetail.userId,
       },
       data: {
         phone: newPhone,
