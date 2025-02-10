@@ -21,6 +21,7 @@ import userRouter from "./routes/user.routes";
 import medicinesRouter from "./routes/medicine.routes";
 import cartRouter from "./routes/cart.routes";
 import wishlistRouter from "./routes/wishlist.routes";
+import doctorRouter from "./routes/doctor.routes";
 
 
 // routes
@@ -36,6 +37,7 @@ app.use("/api/v1/medicines", medicinesRouter);
 app.use("/api/v1/cart", cartRouter);
 app.use("/api/v1/wishlist", wishlistRouter);
 
-
+// doctor routes...
+app.use("/api/v1/doctors", doctorRouter)
 
 export default app;
