@@ -11,7 +11,7 @@ const getAllMedicine = async(req:Request, res:Response) => {
         if(medicineArray) {
             medicineArray.forEach((medicineObject) => {
                 filteredData.push({
-                    medicine_id: medicineObject.category_id,
+                    medicine_id: medicineObject.medicine_id,
                     medicine_name: medicineObject.name,
                     description: medicineObject.description,
                     price: medicineObject.price,
@@ -216,13 +216,3 @@ export {
     allManufacturer,
     allBrands
 }
-
-/*
-done
-getAllMedicine,
-getMedicinesByBrand,
-getMedicinesByCategory,
-allCategories,
-allManufacturer,
-addDate
- */

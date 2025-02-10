@@ -27,7 +27,7 @@ model Users {
   addressDetails   AddressDetails?
   addressDetailsId String?
 
-  carts Cart[]
+  carts     Cart[]
   wishlists Wishlist[]
 
   otp   OTP?
@@ -77,13 +77,13 @@ model OTP {
 
 // medicine schemas
 model Medicine {
-  medicine_id           Int       @id @default(autoincrement())
+  medicine_id           Int          @id @default(autoincrement())
   name                  String
   category_id           Int
   category              Category     @relation(fields: [category_id], references: [category_id])
   price                 Float
-  brand_id Int
-  brand                 Brand @relation(fields: [brand_id], references: [brand_id])
+  brand_id              Int
+  brand                 Brand        @relation(fields: [brand_id], references: [brand_id])
   manufacturer_id       Int
   manufacturer          Manufacturer @relation(fields: [manufacturer_id], references: [manufacturer_id])
   stock_quantity        Int
@@ -91,15 +91,15 @@ model Medicine {
   description           String
   prescription_required Boolean
 
-  cart Cart[]
+  cart      Cart[]
   wishlists Wishlist[]
 
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Manufacturer {
-  manufacturer_id Int     @id @default(autoincrement())
+  manufacturer_id Int        @id @default(autoincrement())
   name            String     @unique
   medicines       Medicine[]
   description     String?
@@ -108,7 +108,7 @@ model Manufacturer {
 }
 
 model Category {
-  category_id Int     @id @default(autoincrement())
+  category_id Int        @id @default(autoincrement())
   name        String     @unique
   description String?
   medicines   Medicine[]
@@ -117,37 +117,132 @@ model Category {
 }
 
 model Brand {
-  brand_id Int @id @default(autoincrement())
-  name String @unique
+  brand_id    Int        @id @default(autoincrement())
+  name        String     @unique
   description String?
-  medicines Medicine[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  medicines   Medicine[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
-
 
 // cart model
 model Cart {
-  cart_id Int @id @default(autoincrement())
-  user_id String
-  user Users @relation(fields: [user_id], references: [userID])
+  cart_id     Int      @id @default(autoincrement())
+  user_id     String
+  user        Users    @relation(fields: [user_id], references: [userID])
   medicine_id Int
-  medicine Medicine @relation(fields: [medicine_id], references: [medicine_id])
-  quantity Int @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  medicine    Medicine @relation(fields: [medicine_id], references: [medicine_id])
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([user_id, medicine_id])
 }
 
 // wishlist model
 model Wishlist {
-  wishlist_id   Int       @id @default(autoincrement())
-  user_id       String
-  user          Users     @relation(fields: [user_id], references: [userID])
-  medicine_id   Int
-  medicine      Medicine  @relation(fields: [medicine_id], references: [medicine_id])
-  createdAt     DateTime  @default(now())
+  wishlist_id Int      @id @default(autoincrement())
+  user_id     String
+  user        Users    @relation(fields: [user_id], references: [userID])
+  medicine_id Int
+  medicine    Medicine @relation(fields: [medicine_id], references: [medicine_id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@unique([user_id, medicine_id]) 
+  @@unique([user_id, medicine_id])
+}
+
+// doctor models
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum AppointmentType {
+  ONLINE
+  OFFLINE
+}
+
+model Doctor {
+  id String @id @default(uuid())
+
+  // basic details...
+  name           String
+  gender         String
+  speciality     String
+  experience     Int     @default(0)
+  state          String
+  district       String
+  city           String
+  appointmentFee Decimal
+  isClinicOwner  Boolean @default(false)
+
+  // doctor redistration details...
+  registrationNumber  String @unique
+  registrationCouncil String
+  registrationYear    Int
+
+  // education details of doctors...
+  degree            String
+  collegeUniversity String
+  completionYear    Int
+
+  // identification file
+  filePath String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  clinic       Clinic?
+  appointments Appointment[]
+
+  @@index([speciality, state])
+}
+
+model Clinic {
+  id                   String   @id @default(uuid())
+  doctorId             String   @unique
+  clinicName           String
+  clinicSpeciality     String
+  clinicContactNo      String[]
+  clinicRegistrationNo String   @unique
+  clinicSignBoard      String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  appointments Appointment[]
+  address      Address?
+  doctor       Doctor        @relation(fields: [doctorId], references: [id])
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  userId          String
+  doctorId        String
+  appointmentDate DateTime
+  appointmentType AppointmentType
+  clinicId        String?
+  status          AppointmentStatus @default(PENDING)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  doctor Doctor  @relation(fields: [doctorId], references: [id])
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  clinicId  String   @unique
+  state     String
+  district  String
+  city      String
+  pincode   String
+  nearby    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id])
 }
