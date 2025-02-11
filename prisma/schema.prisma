@@ -178,6 +178,8 @@ model Doctor {
   city           String
   appointmentFee Decimal
   isClinicOwner  Boolean @default(false)
+  hospitalId     String?
+  clinicId       String?
 
   // doctor redistration details...
   registrationNumber  String @unique
@@ -196,8 +198,9 @@ model Doctor {
   updatedAt DateTime @updatedAt
 
   // Relationships
-  clinic       Clinic?
   appointments Appointment[]
+  clinic       Clinic?
+  hospital     Hospital?     @relation(fields: [hospitalId], references: [id])
 
   @@index([speciality, state])
 }
@@ -210,12 +213,29 @@ model Clinic {
   clinicContactNo      String[]
   clinicRegistrationNo String   @unique
   clinicSignBoard      String
+  addressId            String   @unique
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   appointments Appointment[]
-  address      Address?
-  doctor       Doctor        @relation(fields: [doctorId], references: [id])
+  address      ClinicAndHospitalAddress @relation(fields: [addressId], references: [id])
+  doctor       Doctor                   @relation(fields: [doctorId], references: [id])
+}
+
+model Hospital {
+  id                     String   @id @default(uuid())
+  hospitalName           String
+  hospitalSpeciality     String
+  hospitalContactNo      String[]
+  hospitalRegistrationNo String   @unique
+  hospitalSignBoard      String
+  addressId              String   @unique
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  // relations
+  doctors Doctor[]
+  address ClinicAndHospitalAddress @relation(fields: [addressId], references: [id])
 }
 
 model Appointment {
@@ -233,9 +253,9 @@ model Appointment {
   clinic Clinic? @relation(fields: [clinicId], references: [id])
 }
 
-model Address {
+model ClinicAndHospitalAddress {
   id        String   @id @default(uuid())
-  clinicId  String   @unique
+  name      String
   state     String
   district  String
   city      String
@@ -244,5 +264,6 @@ model Address {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinic Clinic @relation(fields: [clinicId], references: [id])
+  clinic   Clinic?
+  hospital Hospital?
 }
