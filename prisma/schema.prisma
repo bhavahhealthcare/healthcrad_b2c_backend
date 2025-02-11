@@ -166,43 +166,56 @@ enum AppointmentType {
 }
 
 model Doctor {
-  id String @id @default(uuid())
+  id               String  @id @default(uuid())
+  phoneNumber      String  @unique
+  isVerified       Boolean @default(false)  // After OTP verification
+  profileCompleted Boolean @default(false)  // After all details are filled
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  // basic details...
-  name           String
-  gender         String
-  speciality     String
-  experience     Int     @default(0)
-  state          String
-  district       String
-  city           String
+  // Relationships
+  doctorDetails    DoctorDetails?
+  doctorEducation  DoctorEducation?
+  doctorRegistration DoctorRegistration?
+  clinic Clinic?
+  appointment Appointment[]
+}
+
+model DoctorDetails {
+  id            String @id @default(uuid())
+  doctorId      String @unique
+  name          String
+  gender        String
+  speciality    String
+  experience    Int      @default(0)
+  state         String
+  district      String
+  city          String
   appointmentFee Decimal
-  isClinicOwner  Boolean @default(false)
-  hospitalId     String?
-  clinicId       String?
+  hospitalId String?
 
-  // doctor redistration details...
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital Hospital? @relation(fields: [hospitalId], references: [id])
+}
+
+model DoctorEducation {
+  id               String @id @default(uuid())
+  doctorId         String @unique
+  degree           String
+  collegeUniversity String
+  completionYear   Int
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+}
+
+model DoctorRegistration {
+  id                  String @id @default(uuid())
+  doctorId            String @unique
   registrationNumber  String @unique
   registrationCouncil String
   registrationYear    Int
 
-  // education details of doctors...
-  degree            String
-  collegeUniversity String
-  completionYear    Int
-
-  // identification file
-  filePath String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relationships
-  appointments Appointment[]
-  clinic       Clinic?
-  hospital     Hospital?     @relation(fields: [hospitalId], references: [id])
-
-  @@index([speciality, state])
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 }
 
 model Clinic {
@@ -234,7 +247,7 @@ model Hospital {
   updatedAt              DateTime @updatedAt
 
   // relations
-  doctors Doctor[]
+  doctor DoctorDetails[]
   address ClinicAndHospitalAddress @relation(fields: [addressId], references: [id])
 }
 
@@ -249,7 +262,7 @@ model Appointment {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  doctor Doctor  @relation(fields: [doctorId], references: [id])
+  doctor Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   clinic Clinic? @relation(fields: [clinicId], references: [id])
 }
 
