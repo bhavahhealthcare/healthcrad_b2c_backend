@@ -6,7 +6,7 @@ class ApiResponse<T> {
     success: boolean;
 
     constructor(
-        status: "Success" | "Pending" | "Failed" = "Success", // Default status
+        status: "Success" | "Pending" | "Failed" = "Success",
         statusCode: number,
         message: string,
         data: T
@@ -15,7 +15,7 @@ class ApiResponse<T> {
         this.statusCode = statusCode;
         this.message = message;
         this.data = data;
-        this.success = status === "Success"; // Automatically set based on status
+        this.success = status === "Success";
     }
 }
 

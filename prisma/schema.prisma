@@ -21,7 +21,7 @@ model Users {
   phone        String   @unique
   gender       Gender
   dateOfBirth  DateTime
-  userType     UserType @default(user)
+  userType     UserType @default(USER)
   refreshToken String?
 
   addressDetails   AddressDetails?
@@ -35,15 +35,15 @@ model Users {
 }
 
 enum Gender {
-  male
-  female
-  other
+  MALE
+  FEMALE
+  OTHER
 }
 
 enum UserType {
-  user
-  doctor
-  admin
+  USER
+  DOCTOR
+  ADMIN
 }
 
 model AddressDetails {
@@ -166,44 +166,47 @@ enum AppointmentType {
 }
 
 model Doctor {
-  id               String  @id @default(uuid())
-  phoneNumber      String  @unique
-  isVerified       Boolean @default(false)  // After OTP verification
-  profileCompleted Boolean @default(false)  // After all details are filled
+  id               String   @id @default(uuid())
+  phoneNumber      String   @unique
+  isVerified       Boolean  @default(false)
+  profileCompleted Boolean  @default(false)
+  refreshToken     String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   // Relationships
-  doctorDetails    DoctorDetails?
-  doctorEducation  DoctorEducation?
+  doctorDetails      DoctorDetails?
+  doctorEducation    DoctorEducation?
   doctorRegistration DoctorRegistration?
-  clinic Clinic?
-  appointment Appointment[]
+  clinic             Clinic?
+  appointment        Appointment[]
+  schedule           DoctorSchedule[]
+  slots              Slots[]
 }
 
 model DoctorDetails {
-  id            String @id @default(uuid())
-  doctorId      String @unique
-  name          String
-  gender        String
-  speciality    String
-  experience    Int      @default(0)
-  state         String
-  district      String
-  city          String
+  id             String  @id @default(uuid())
+  doctorId       String  @unique
+  name           String
+  gender         String
+  speciality     String
+  experience     Int     @default(0)
+  state          String
+  district       String
+  city           String
   appointmentFee Decimal
-  hospitalId String?
+  hospitalId     String?
 
-  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor   Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   hospital Hospital? @relation(fields: [hospitalId], references: [id])
 }
 
 model DoctorEducation {
-  id               String @id @default(uuid())
-  doctorId         String @unique
-  degree           String
+  id                String @id @default(uuid())
+  doctorId          String @unique
+  degree            String
   collegeUniversity String
-  completionYear   Int
+  completionYear    Int
 
   doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 }
@@ -218,6 +221,44 @@ model DoctorRegistration {
   doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 }
 
+enum Day {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+model DoctorSchedule {
+  id        String   @id @default(uuid())
+  doctorId  String
+  day       Day
+  startTime DateTime
+  endTime   DateTime
+  totalSlots Int
+  recurring  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // relationships...
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+}
+
+model Slots {
+  id String @id @default(uuid())
+  doctorId String
+  isBooked Boolean @default(false)
+  startTime DateTime
+  slotDuration Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // relationaships
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+}
+
 model Clinic {
   id                   String   @id @default(uuid())
   doctorId             String   @unique
@@ -226,13 +267,16 @@ model Clinic {
   clinicContactNo      String[]
   clinicRegistrationNo String   @unique
   clinicSignBoard      String
-  addressId            String   @unique
+  state                String
+  district             String
+  city                 String
+  pincode              String
+  nearbyLocation       String
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   appointments Appointment[]
-  address      ClinicAndHospitalAddress @relation(fields: [addressId], references: [id])
-  doctor       Doctor                   @relation(fields: [doctorId], references: [id])
+  doctor       Doctor        @relation(fields: [doctorId], references: [id])
 }
 
 model Hospital {
@@ -242,19 +286,26 @@ model Hospital {
   hospitalContactNo      String[]
   hospitalRegistrationNo String   @unique
   hospitalSignBoard      String
-  addressId              String   @unique
+  state                  String
+  district               String
+  city                   String
+  pincode                String
+  nearbyLocation         String
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   // relations
   doctor DoctorDetails[]
-  address ClinicAndHospitalAddress @relation(fields: [addressId], references: [id])
 }
 
 model Appointment {
   id              String            @id @default(uuid())
   userId          String
   doctorId        String
+  patientName     String
+  patientAge      Int
+  patientGender   Gender
+  patientPhone    String
   appointmentDate DateTime
   appointmentType AppointmentType
   clinicId        String?
@@ -266,17 +317,21 @@ model Appointment {
   clinic Clinic? @relation(fields: [clinicId], references: [id])
 }
 
-model ClinicAndHospitalAddress {
-  id        String   @id @default(uuid())
-  name      String
-  state     String
-  district  String
-  city      String
-  pincode   String
-  nearby    String
+model MedicalHistory {
+  id String @id @default(uuid())
+  doctorId String
+  userId String
+  patientName     String
+  patientAge      Int
+  patientGender   Gender
+  patientPhone    String
+  appointmentDate DateTime
+  appointmentType AppointmentType
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinic   Clinic?
-  hospital Hospital?
+  // relationships
+  doctor Doctor @relation(fields: [], references: [])
+  user Users @relation(fields: [], references: [])
 }

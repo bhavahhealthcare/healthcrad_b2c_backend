@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { verifyToken } from "../middlewares/user.middlewares";
+import { verifyToken } from "../middlewares/validateCredential.middlewares";
 import { addToWishlist, getWishlistItems, removeFromWishlist } from "../controllers/wishlist.controllers"
 
 

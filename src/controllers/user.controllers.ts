@@ -1,15 +1,15 @@
+import { Request, Response } from "express";
+import { PrismaClient, UserType, Prisma } from "@prisma/client";
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
-import { PrismaClient, UserType, Prisma } from "@prisma/client";
-import { Request, Response } from "express";
 import { z } from "zod";
-import bcrypt, { hash } from "bcrypt";
-import jwt, { SignOptions } from "jsonwebtoken";
-import { sendOTP } from "../utils/SendOTP";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { generateAccessToken, generateRefreshToken, generateAccessandRefreshToken } from "../utils/Token";
 
-const prisma = new PrismaClient();
+
+export const prisma = new PrismaClient();
 const saltRounds = 10;
-const jwtSecret = process.env.JWT_SECRET;
 const registrationSchema = z.object({
   name: z
     .string()
@@ -54,109 +54,6 @@ const phoneSchema = z
   .regex(/^\d{10}$/, "Phone number must be exactly 10 digits");
 const emailSchema = z.string().email({ message: "Invalid email format" });
 
-function generateOtp(): string {
-  const otp = Math.floor(100000 + Math.random() * 900000);
-  return otp.toString();
-      // await prisma.otp.create({
-      //   data: {
-      //     userID: user.userID,
-      //     phone: newPhone,
-      //     otpCode: otpCode.toString(),
-      //     expiresAt: new Date(Date.now() + 10 * 60 * 1000), // OTP valid for 10 minutes
-      //   },
-      // });
-}
-
-// generate accessToken
-const generateAccessToken = (user: {
-  userId: string;
-  email: string;
-  phone: string;
-}): string => {
-  const payload = {
-    userId: user.userId,
-    email: user.email,
-    phone: user.phone,
-  };
-  const jwtSecret = process.env.JWT_SECRET;
-  const expiresIn = process.env.ACCESS_TOKEN_EXPIRE_IN
-    ? parseInt(process.env.ACCESS_TOKEN_EXPIRE_IN)
-    : "1h";
-  // console.log(expiresIn);
-
-  if (!jwtSecret)
-    throw new Error("JWT secret is not defined in environment variables");
-
-  try {
-    return jwt.sign(payload, jwtSecret, { expiresIn });
-  } catch (error) {
-    console.error("Token generation failed:", error);
-    throw new Error("Token generation failed");
-  }
-};
-// generate refreshToken
-const generateRefreshToken = (user: { userId: string }): string => {
-  const payload: Object = { userId: user.userId };
-  const expiresIn = process.env.REFRESH_TOKEN_EXPIRE_IN
-    ? parseInt(process.env.REFRESH_TOKEN_EXPIRE_IN)
-    : "7d";
-  // console.log(expiresIn);
-
-  const secret = process.env.REFRESH_TOKEN_SECRET;
-  if (!secret)
-    throw new Error("Missing REFRESH_TOKEN_SECRET in environment variable");
-
-  try {
-    return jwt.sign(payload, secret, { expiresIn: expiresIn });
-  } catch (error) {
-    console.error("Refresh-Token generation failed:", error);
-    throw new Error("Token generation failed");
-  }
-};
-
-// generate access and refresh token...
-const generateAccessandRefreshToken = (user: {
-  userId: string;
-  email: string;
-  phone: string;
-}) => {
-  const accessTokenSecret = process.env.JWT_SECRET;
-  const refreshTokenSecret = process.env.REFRESH_TOKEN_SECRET;
-  const accessTokenExpire = process.env.ACCESS_TOKEN_EXPIRE_IN
-    ? parseInt(process.env.ACCESS_TOKEN_EXPIRE_IN)
-    : "15min";
-  const refreshTokenExpire = process.env.REFRESH_TOKEN_EXPIRE_IN
-    ? parseInt(process.env.REFRESH_TOKEN_EXPIRE_IN)
-    : "7d";
-
-  if (!accessTokenSecret || !refreshTokenSecret)
-    throw new Error("Secret  is invalid!");
-
-  try {
-    const newAccessToken = jwt.sign(
-      {
-        userId: user.userId,
-        email: user.email,
-        phone: user.phone,
-      },
-      accessTokenSecret,
-      { expiresIn: accessTokenExpire }
-    );
-    const newRefreshToken = jwt.sign(
-      {
-        userId: user.userId,
-      },
-      refreshTokenSecret,
-      { expiresIn: refreshTokenExpire }
-    );
-
-    return { newAccessToken, newRefreshToken };
-  } catch (error) {
-    console.log("error in generating access token: ", error);
-    throw new Error("Error in generating access token!");
-  }
-};
-
 // get all users.........................................................................
 const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -171,26 +68,28 @@ const getAllUsers = async (req: Request, res: Response) => {
 // get user by id
 const getUser = async (req: Request, res: Response) => {
   try {
-    const userDetail = req.body.user;
-    if(!userDetail || !userDetail.userId) {
+    const userDetail = req.body.credentials;
+    if (!userDetail || !userDetail.userId) {
       res.status(401).json(new ApiError("User details missing", 401));
       return;
     }
 
     const currentUser = await prisma.users.findUnique({
       where: {
-        userID: userDetail.userId
-      }
+        userID: userDetail.userId,
+      },
     });
-    if(!userDetail){
+    if (!userDetail) {
       res.status(404).json(new ApiError("User detail not found!", 404));
     }
-    res.status(200).json(new ApiResponse("Success", 200, "User data Fetched", currentUser))
+    res
+      .status(200)
+      .json(new ApiResponse("Success", 200, "User data Fetched", currentUser));
   } catch (error) {
     console.error("Error while getting user details: ", error);
     res.status(500).json(new ApiError("Internal server error", 500));
   }
-}
+};
 
 // register user.........................................................................
 const registerUser = async (req: Request, res: Response) => {
@@ -263,12 +162,14 @@ const registerUser = async (req: Request, res: Response) => {
     }
     try {
       refreshToken = generateRefreshToken({ userId: newUser.userID });
+      // hash refresh token..
+      const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
       await prisma.users.update({
         where: {
           phone: newUser.phone,
         },
         data: {
-          refreshToken: refreshToken,
+          refreshToken: hashedRefreshToken,
         },
       });
     } catch (err) {
@@ -282,13 +183,12 @@ const registerUser = async (req: Request, res: Response) => {
       return;
     }
 
-    res
-      .status(201)
-      .json({
-        message: "User registered successfully",
-        accessToken,
-        refreshToken,
-      });
+    // res.cookie() send refresh token in cookie http only
+    res.status(201).json({
+      message: "User registered successfully",
+      accessToken,
+      refreshToken,
+    });
   } catch (error) {
     console.error("Error during registration:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -312,14 +212,6 @@ const loginUser = async (req: Request, res: Response) => {
         .json(new ApiError("validation error", 400, undefined, errorMessage));
       return;
     }
-    const message = "I am testing for OTP based varification!"
-    const result = await sendOTP({
-      message: message,
-      phoneNumber: phone,
-      isTest: "true"
-    });
-    console.log(result);
-    return;
 
 
     // check if user registered
@@ -329,32 +221,53 @@ const loginUser = async (req: Request, res: Response) => {
       },
     });
     if (!user) {
-      res.status(404).json({ message: "User Not Found!" });
+      res.status(404).json(new ApiError("User Not Found!", 404));
       return;
     }
-    const OTP = generateOtp();
+
     // this OTP will be sent via phone no and will be saved in database.
-    
 
     // jwt...
-    // let token;
-    // try {
-    //   token = generateAccessToken({
-    //     userId: user.userID,
-    //     email: user.email,
-    //     phone: user.phone,
-    //   });
-    // } catch (err) {
-    //   await prisma.users.delete({
-    //     where: { phone },
-    //   });
-    //   console.error("Token generation failed:", err);
-    //   res.status(500).json({ message: "User registration failed" });
-    //   return;
-    // }
+    let accessToken;
+    try {
+      const { newAccessToken, newRefreshToken } = generateAccessandRefreshToken({
+        userId: user.userID,
+        email: user.email,
+        phone: user.phone,
+      });
+      accessToken = newAccessToken;
 
-    res.status(200).json({ message: "log in successful!", token: "no token" });
+      // hash refreshToken
+      const hashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
+      await prisma.users.update({
+        where: {
+          userID: user.userID
+        },
+        data: {
+          refreshToken: hashedRefreshToken
+        }
+      });
+    } catch (error) {
+      await prisma.users.delete({
+        where: { phone },
+      });
+      console.error("Token generation failed:", error);
+      res.status(500).json(new ApiError("User registration failed", 500));
+      return;
+    }
+
+    res.status(200).json(new ApiResponse("Success", 200, "Logged in.", { accessToken: accessToken }));
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error("Prisma known error: ", error);
+      res.status(400).json(new ApiError("Database error.", 400));
+      return;
+    } else if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+      console.error("Prisma unknown error: ", error);
+      res.status(500).json(new ApiError("Unknown database error.", 500));
+      return;
+    }
+
     console.error("Error during Login:", error);
     res.status(500).json({ message: "Internal server error" });
   }
@@ -362,71 +275,79 @@ const loginUser = async (req: Request, res: Response) => {
 
 // renew access and refresh token...
 const refreshAccessToken = async (req: Request, res: Response) => {
-  const refreshToken = req.headers.authorization?.split(" ")[1];
-  console.log(refreshToken);
-  if (!refreshToken) {
-    res
-      .status(401)
-      .json(new ApiError("Unauthorized request: Token missing", 401));
-    return;
-  }
-  // varify refresh token
-  const secret = process.env.REFRESH_TOKEN_SECRET;
-  if (!secret) throw new Error("Secret  is invalid!");
-
-  let decodedToken: jwt.JwtPayload;
   try {
-    decodedToken = jwt.verify(refreshToken, secret) as jwt.JwtPayload;
-  } catch (error) {
-    console.error("Invalid refresh token:", error);
-    res
-      .status(403)
-      .json(new ApiError("Forbidden: Invalid or expired token", 403));
-    return;
-  }
+    const refreshToken = req.headers.authorization?.split(" ")[1];
+    if (!refreshToken) {
+      res
+        .status(401)
+        .json(new ApiError("Unauthorized request: Token missing", 401));
+      return;
+    }
+    const secret = process.env.REFRESH_TOKEN_SECRET;
+    if (!secret) throw new ApiError("Refresh token secret not defined.", 500);
 
-  const { userId } = decodedToken;
-  if (!userId) {
-    throw new Error("Refresh token missing userId");
-  }
+    let decodedToken: jwt.JwtPayload;
+    try {
+      decodedToken = jwt.verify(refreshToken, secret) as jwt.JwtPayload;
+    } catch (error) {
+      console.error("Refresh Token Error:", error);
+      if(
+        error instanceof jwt.JsonWebTokenError || 
+        error instanceof jwt.TokenExpiredError || 
+        error instanceof jwt.NotBeforeError
+      ) {
+        res.status(403).json(new ApiError(error.message, 403));
+        return;
+      }
+      res.status(500).json(new ApiError("Internal server error.", 500));
+      return;
+    }
 
-  try {
+    // extract user
+    const { userId } = decodedToken;
+    if (!userId) {
+      res.status(400).json(new ApiError("Refresh token missing userId!", 400));
+      return;
+    }
+
+    // fetch user details
     const user = await prisma.users.findUnique({
       where: {
         userID: userId,
       },
     });
-    if (user?.refreshToken !== refreshToken) {
-      res.status(404).json(new ApiError("Invalid refresh token", 404));
+
+    if (!user) {
+      
+      res.status(404).json(new ApiError("User details not found!", 404));
       return;
     }
 
-    if (!user || !user.userID || !user.email || !user.phone) {
-      throw new Error("Invalid user data!");
-    }
+    // Compare refreshToken
+    const isTokenValid = await bcrypt.compare(refreshToken, user?.refreshToken as string);
+
     const { newAccessToken, newRefreshToken } = generateAccessandRefreshToken({
       userId: user.userID,
       email: user.email,
       phone: user.phone,
     });
-    const result = await prisma.users.update({
+    // hash refreshToken
+    const hashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
+    await prisma.users.update({
       where: {
         userID: userId,
       },
       data: {
-        refreshToken: newRefreshToken,
+        refreshToken: hashedRefreshToken,
       },
     });
-    console.log(result);
 
-    res
-      .status(201)
-      .json(
-        new ApiResponse("Success", 201, "Token Generated", {
-          newAccessToken,
-          newRefreshToken,
-        })
-      );
+    res.status(201).json(
+      new ApiResponse("Success", 201, "Token Generated", {
+        newAccessToken,
+        newRefreshToken,
+      })
+    );
   } catch (error) {
     console.error(error);
     res.status(500).json(new ApiError("Internal Server error", 500));
@@ -438,7 +359,7 @@ const updatePhone = async (req: Request, res: Response) => {
   try {
     // const { newPhone, userDetail } = req.body;
     const newPhone = req.body.phone;
-    const userDetail = req.body.user;
+    const userDetail = req.body.credentials;
     console.log(userDetail);
 
     if (!userDetail || !userDetail.userId) {
@@ -452,10 +373,16 @@ const updatePhone = async (req: Request, res: Response) => {
     } catch (error) {
       console.error(error);
       if (error instanceof z.ZodError) {
-        res.status(400).json(new ApiError("Invalid Phone Number", 400, undefined, error.errors));
+        res
+          .status(400)
+          .json(
+            new ApiError("Invalid Phone Number", 400, undefined, error.errors)
+          );
         return;
       }
-      res.status(500).json(new ApiError("Unexpected error during validation", 500));
+      res
+        .status(500)
+        .json(new ApiError("Unexpected error during validation", 500));
       return;
     }
 
@@ -478,13 +405,15 @@ const updatePhone = async (req: Request, res: Response) => {
     // Check if the phone is already used by another user
     const existingUser = await prisma.users.findUnique({
       where: {
-        phone: newPhone
+        phone: newPhone,
       },
     });
     if (existingUser) {
       res
         .status(409)
-        .json(new ApiError("This phone is already in use by another account", 409));
+        .json(
+          new ApiError("This phone is already in use by another account", 409)
+        );
       return;
     }
 
@@ -497,8 +426,10 @@ const updatePhone = async (req: Request, res: Response) => {
         phone: newPhone,
       },
     });
-    
-    res.status(200).json(new ApiResponse("Success", 200, "Phone updated", data))
+
+    res
+      .status(200)
+      .json(new ApiResponse("Success", 200, "Phone updated", data));
   } catch (error) {
     console.error("Error while updating phone: ", error);
     res.status(500).json(new ApiError("Internal server error", 500));
@@ -510,7 +441,7 @@ const updateEmail = async (req: Request, res: Response) => {
   try {
     // const { newEmail, userDetail } = req.body;
     const newEmail = req.body.email;
-    const userDetail = req.body.user;
+    const userDetail = req.body.credentials;
     console.log(newEmail);
     // validate email...
     try {
@@ -518,10 +449,14 @@ const updateEmail = async (req: Request, res: Response) => {
     } catch (error) {
       console.error(error);
       if (error instanceof z.ZodError) {
-        res.status(400).json(new ApiError("Invalid Email", 400, undefined, error.errors));
+        res
+          .status(400)
+          .json(new ApiError("Invalid Email", 400, undefined, error.errors));
         return;
       }
-      res.status(500).json(new ApiError("Unexpected error during validation", 500));
+      res
+        .status(500)
+        .json(new ApiError("Unexpected error during validation", 500));
       return;
     }
 
@@ -549,7 +484,7 @@ const updateEmail = async (req: Request, res: Response) => {
     // Check if the email is already used by another user
     const existingUser = await prisma.users.findUnique({
       where: {
-        email: newEmail
+        email: newEmail,
       },
     });
     if (existingUser) {
@@ -568,7 +503,9 @@ const updateEmail = async (req: Request, res: Response) => {
         email: newEmail,
       },
     });
-    res.status(200).json(new ApiResponse("Success", 200, "Email Updated", data.email))
+    res
+      .status(200)
+      .json(new ApiResponse("Success", 200, "Email Updated", data.email));
   } catch (error) {
     console.error("Error while updating email: ", error);
     res.status(500).json(new ApiError("Internal server error", 500));
@@ -588,7 +525,6 @@ const addAddress = async (req: Request, res: Response) => {
       localityArea,
       landmark,
     } = req.body;
-    console.log(req.body.user);
     if (
       !name ||
       !patientName ||
@@ -602,7 +538,7 @@ const addAddress = async (req: Request, res: Response) => {
       res.status(400).json(new ApiError("All field are required", 400));
       return;
     }
-    const userDetail = req.body.user;
+    const userDetail = req.body.credentials;
     if (!userDetail || !userDetail.userId) {
       res.status(401).json(new ApiError("User details missing", 401));
       return;
@@ -636,22 +572,26 @@ const addAddress = async (req: Request, res: Response) => {
     if (newAddress) {
       const pushIdToUser = await prisma.users.update({
         where: {
-          userID: newAddress.userID
+          userID: newAddress.userID,
         },
         data: {
-          addressDetailsId: newAddress.id
-        }
+          addressDetailsId: newAddress.id,
+        },
       });
-      if(!pushIdToUser){
+      if (!pushIdToUser) {
         const deleteAddress = await prisma.addressDetails.delete({
           where: {
-            id: newAddress.id
-          }
+            id: newAddress.id,
+          },
         });
         res.status(500).json(new ApiError("Internal server error!", 500));
       }
     }
-    res.status(201).json(new ApiResponse("Success",201,"Address added successfuly",newAddress));
+    res
+      .status(201)
+      .json(
+        new ApiResponse("Success", 201, "Address added successfuly", newAddress)
+      );
   } catch (error) {
     console.error("Error adding address:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -676,7 +616,6 @@ const updateAddress = async (req: Request, res: Response) => {
       localityArea,
       landmark,
     } = req.body;
-    console.log(req.body.user);
     if (
       !name ||
       !patientName ||
@@ -690,7 +629,7 @@ const updateAddress = async (req: Request, res: Response) => {
       res.status(400).json(new ApiError("All field are required", 400));
       return;
     }
-    const userDetail = req.body.user;
+    const userDetail = req.body.credentials;
     if (!userDetail || !userDetail.userId) {
       res.status(401).json(new ApiError("User details missing", 401));
       return;
@@ -747,7 +686,16 @@ const updateAddress = async (req: Request, res: Response) => {
       },
     });
 
-    res.status(201).json(new ApiResponse("Success",201,"Address updated successfuly",updatedAddress));
+    res
+      .status(201)
+      .json(
+        new ApiResponse(
+          "Success",
+          201,
+          "Address updated successfuly",
+          updatedAddress
+        )
+      );
   } catch (error) {
     console.error("Error adding address:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -769,5 +717,3 @@ export {
   updateEmail,
   updateAddress,
 };
-
-

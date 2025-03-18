@@ -6,7 +6,6 @@ import { ApiError } from "../utils/ApiError";
 const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const accessToken = req.headers.authorization?.split(" ")[1];
-        // console.log(accessToken);
         if(!accessToken) {
             res.status(401).json(new ApiError("Unauthorized request: Token missing", 401));
             return;
@@ -19,15 +18,10 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
         }
 
         const decodedInfo = Jwt.verify(accessToken, accessTokenSecret);
-        req.body.user = decodedInfo;
-        // console.log("Token verified");
+        req.body.credentials = decodedInfo; // updated from user to credentials
         next();
     } catch (err) {
         console.error("Unexpected error during token verification: ", err);
-        // if (err instanceof Jwt.JsonWebTokenError) {
-        //     res.status(401).json(new ApiError("Invalid token", 401));
-        //     return;
-        // } else 
         if (err instanceof Jwt.TokenExpiredError) {
             res.status(401).json(new ApiError("Token exired", 401));
             return;
